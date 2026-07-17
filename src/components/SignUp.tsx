@@ -46,9 +46,9 @@ export default function SignUp({
       className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-24"
     >
       {/* Ambient glow */}
-      <div className="pointer-events-none absolute left-1/2 top-1/3 h-[38rem] w-[38rem] -translate-x-1/2 rounded-full bg-primary/12 blur-[120px]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/3 h-[38rem] w-[38rem] -translate-x-1/2 rounded-full bg-primary/14 blur-[130px]" />
 
-      <div className="relative flex w-full max-w-lg flex-col items-center text-center">
+      <div className="glass-panel relative flex w-full max-w-lg flex-col items-center rounded-[2rem] px-8 py-14 text-center md:px-14 md:py-16">
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.5em] text-accent">
           Join the pack
         </p>
@@ -91,6 +91,7 @@ export default function SignUp({
             <form action="/api/auth/signout" method="post" className="mt-6">
               <button
                 type="submit"
+                data-cursor-hover
                 className="text-sm text-muted underline-offset-4 transition-colors hover:text-foreground hover:underline"
               >
                 Sign out
@@ -117,7 +118,9 @@ export default function SignUp({
 
             <a
               href="/api/auth/google"
-              className="group mt-10 flex w-full max-w-sm items-center justify-center gap-3 rounded-full bg-foreground px-6 py-4 text-base font-medium text-background transition-transform duration-200 hover:scale-[1.02]"
+              data-magnetic
+              data-cursor-hover
+              className="group mt-10 flex w-full max-w-sm items-center justify-center gap-3 rounded-full bg-foreground px-6 py-4 text-base font-medium text-background shadow-[0_0_40px_-8px_rgba(173,150,249,0.5)] transition-transform duration-200"
             >
               <GoogleGlyph />
               Continue with Google

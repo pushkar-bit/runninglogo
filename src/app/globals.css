@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #08070a;
-  --surface: #131118;
-  --surface-2: #1b1822;
-  --foreground: #f5f3fb;
-  --muted: #9d97ac;
-  --border: #262231;
+  --background: #030204;
+  --surface: #0e0c12;
+  --surface-2: #16131c;
+  --foreground: #f6f4fc;
+  --muted: #948da5;
+  --border: #221e2c;
   --primary: #ad96f9;
   --primary-dim: #8c72e0;
   --accent: #d1547f;
   --accent-dim: #a83a63;
-  --wine: #2a1024;
+  --wine: #200a1c;
 }
 
 @theme inline {
@@ -45,6 +45,21 @@ body {
 ::selection {
   background: var(--primary);
   color: var(--background);
+}
+
+/* Custom cursor: only applied when CustomCursor.tsx confirms a fine
+   hover-capable pointer, so touch devices keep their native cursor. */
+body.cursor-none-custom,
+body.cursor-none-custom a,
+body.cursor-none-custom button {
+  cursor: none;
+}
+
+.glass-panel {
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

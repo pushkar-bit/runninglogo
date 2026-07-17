@@ -1,11 +1,12 @@
 # Ichor Run Club
 
-A one-page, premium landing site for Ichor Run Club (Delhi). As you scroll, a
-pinned canvas scrubs frame-by-frame through the brand sequence — **logo →
-kangaroo → runner** — and lands on a Google-powered sign-up.
+A one-page, premium landing site for Ichor Run Club (Delhi). A live WebGL
+particle scene morphs the ICHOR mark into a purple kangaroo as you scroll, and
+the page ends on a Google-powered sign-up. Custom cursor with magnetic
+buttons throughout.
 
-Built with Next.js (App Router), Tailwind CSS v4, GSAP/ScrollTrigger, Lenis
-smooth scroll, and the Satoshi typeface.
+Built with Next.js (App Router), Tailwind CSS v4, Three.js, GSAP/ScrollTrigger,
+Lenis smooth scroll, and the Satoshi typeface.
 
 ## Getting started
 
@@ -36,13 +37,43 @@ Sign-in works once you add your own Google OAuth credentials.
 
 5. Restart `npm run dev`. "Continue with Google" now works.
 
-## How the scroll animation works
+## How the particle scroll animation works
 
-- Frames live in `public/sequence/` (150 JPEGs extracted from the brand video).
-- [`ScrollSequence.tsx`](src/components/ScrollSequence.tsx) preloads them, then
-  ties the frame index to scroll position on a pinned canvas via GSAP
-  ScrollTrigger (`scrub`), so it stays smooth on any device. Honors
-  `prefers-reduced-motion` by showing the final frame statically.
+There's no 3D model file — [`src/lib/particles.ts`](src/lib/particles.ts)
+generates two matching point clouds at runtime:
+
+- **Logo cloud** — the ICHOR "C" mark, drawn to an offscreen canvas and sampled.
+- **Kangaroo cloud** — sampled from `public/images/kangaroo-source.jpg` (a frame
+  from the brand video) by luminance threshold, so only the lit kangaroo body
+  becomes particles, not the background.
+
+Both are resampled to the same particle count so they can be morphed 1:1.
+[`ParticleField.tsx`](src/components/ParticleField.tsx) renders them as a
+glowing `THREE.Points` cloud (custom shader, additive blending) that:
+
+1. **Generates** on load — particles start scattered in a sphere and assemble
+   into the logo (a GSAP tween on `uGenesis`, not scroll-linked).
+2. **Morphs** logo → kangaroo as you scroll, driven by `uMorph` scrubbed via
+   GSAP ScrollTrigger across `#scroll-track` (a tall, invisible spacer — the
+   canvas itself is `position: fixed` and never scrolls).
+3. **Keeps moving** the whole time via a continuous idle rotation + mouse
+   parallax, independent of scroll, and stays visible (dimmed) behind the
+   sign-up panel at the bottom.
+
+Respects `prefers-reduced-motion` (shows a static assembled logo, no rotation).
+
+To use a different kangaroo frame: re-extract with
+`ffmpeg -i public/video/ichor-brand.mp4 -ss 00:00:07.0 -vframes 1 -q:v 2 public/images/kangaroo-source.jpg`
+and adjust the luminance threshold in `sampleKangarooCloud` if needed.
+
+## Other interactions
+
+- **Logo / "Sign in" click** → smooth-scrolls straight to the sign-up section
+  (`src/lib/lenis-context.tsx` exposes Lenis's `scrollTo` via context).
+- **Custom cursor** (`CustomCursor.tsx`) — lerped dot + ring, expands on
+  hoverable elements, magnetic pull on `data-magnetic` elements (the Google
+  button, nav CTA). Disabled on touch/coarse pointers and simplified under
+  `prefers-reduced-motion`.
 
 ## Notes
 
@@ -50,5 +81,3 @@ Sign-in works once you add your own Google OAuth credentials.
   real datastore/CRM before production.
 - The session is a signed, httpOnly cookie — fine for gating a members area,
   but add a real backend if you need stronger guarantees.
-- To regenerate frames from a new video:
-  `ffmpeg -i public/video/ichor-brand.mp4 -vf "fps=15,scale=1280:-1" -q:v 4 public/sequence/frame_%03d.jpg`

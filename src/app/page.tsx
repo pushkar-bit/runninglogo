@@ -1,5 +1,6 @@
 import Nav from "@/components/Nav";
-import ScrollSequence from "@/components/ScrollSequence";
+import ParticleField from "@/components/ParticleField";
+import ScrollCue from "@/components/ScrollCue";
 import SignUp from "@/components/SignUp";
 import { getSessionUser } from "@/lib/session";
 
@@ -12,9 +13,13 @@ export default async function Home({
 
   return (
     <>
+      <ParticleField />
       <Nav />
-      <main id="top">
-        <ScrollSequence />
+      <ScrollCue />
+      <main id="top" className="relative z-10">
+        {/* Pure scroll distance for the 3D logo -> kangaroo morph, rendered
+            by the fixed ParticleField canvas behind this transparent track. */}
+        <div id="scroll-track" className="h-[380vh] w-full" />
         <SignUp user={user} notice={params.auth} />
       </main>
     </>
