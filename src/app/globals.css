@@ -1,21 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0a0d;
-  --surface: #16141b;
-  --foreground: #f7f5ff;
-  --muted: #a6a1b3;
-  --border: #2a2732;
+  --background: #08070a;
+  --surface: #131118;
+  --surface-2: #1b1822;
+  --foreground: #f5f3fb;
+  --muted: #9d97ac;
+  --border: #262231;
   --primary: #ad96f9;
   --primary-dim: #8c72e0;
   --accent: #d1547f;
   --accent-dim: #a83a63;
-  --wine: #33132a;
+  --wine: #2a1024;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
@@ -24,8 +26,8 @@
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
   --color-wine: var(--wine);
-  --font-display: var(--font-barlow-condensed);
-  --font-sans: var(--font-barlow);
+  --font-sans: "Satoshi", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Satoshi", ui-sans-serif, system-ui, sans-serif;
 }
 
 html {
@@ -36,7 +38,8 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: "Satoshi", ui-sans-serif, system-ui, Arial, sans-serif;
+  font-feature-settings: "ss01";
 }
 
 ::selection {

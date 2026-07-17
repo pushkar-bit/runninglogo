@@ -1,23 +1,22 @@
 import Nav from "@/components/Nav";
-import Hero from "@/components/Hero";
-import Mission from "@/components/Mission";
-import RunSchedule from "@/components/RunSchedule";
-import Community from "@/components/Community";
-import JoinCTA from "@/components/JoinCTA";
-import Footer from "@/components/Footer";
+import ScrollSequence from "@/components/ScrollSequence";
+import SignUp from "@/components/SignUp";
+import { getSessionUser } from "@/lib/session";
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ auth?: string }>;
+}) {
+  const [user, params] = await Promise.all([getSessionUser(), searchParams]);
+
   return (
     <>
       <Nav />
-      <main>
-        <Hero />
-        <Mission />
-        <RunSchedule />
-        <Community />
-        <JoinCTA />
+      <main id="top">
+        <ScrollSequence />
+        <SignUp user={user} notice={params.auth} />
       </main>
-      <Footer />
     </>
   );
 }
