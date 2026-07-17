@@ -62,6 +62,23 @@ body.cursor-none-custom button {
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
 }
 
+/* Running-shoe cursor: transform is updated imperatively per footstep from
+   CustomCursor.tsx, the browser compositor handles the actual motion so it
+   never drops frames on the main thread. */
+.shoe-cursor {
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.22, 0.9, 0.32, 1);
+  transition-duration: 160ms, 260ms;
+  will-change: transform;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--primary) 65%, transparent))
+    drop-shadow(0 0 2px color-mix(in srgb, var(--accent) 55%, transparent));
+}
+
+.shoe-cursor.is-hover {
+  filter: drop-shadow(0 0 11px color-mix(in srgb, var(--primary) 85%, transparent))
+    drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 75%, transparent));
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
