@@ -32,6 +32,16 @@ const RUN_DRIFT = 0.3;
 const RUN_BOB_AMPLITUDE = 0.07;
 const RUN_BOB_CYCLES = 5;
 
+// Real 3D motion for the jumps: depth travel (leaps toward camera, not just
+// up), a forward tumble/pitch through the hop, and — on the transformation
+// jump specifically — one full turn so the kangaroo->human morph reads as a
+// genuine 3D spin rather than a flat crossfade.
+const HOP1_Z_AMPLITUDE = 0.55;
+const HOP1_TUMBLE = 0.32;
+const HOP2_Z_AMPLITUDE = 0.75;
+const HOP2_TUMBLE = 0.45;
+const HOP2_SPIN_TURNS = 1;
+
 function smoothstep(a: number, b: number, x: number) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -187,6 +197,11 @@ export default function ParticleField() {
     };
     if (!reducedMotion) window.addEventListener("mousemove", onMouseMove);
 
+    // Jump depth/tumble/spin — rigid Object3D transforms (not shader
+    // uniforms) so the whole cloud genuinely moves and turns in 3D space
+    // rather than just interpolating flat per-particle positions.
+    const hop3D = { z: 0, tumbleX: 0, spinY: 0 };
+
     const clock = new THREE.Clock();
     let idleRotation = 0;
 
@@ -198,8 +213,9 @@ export default function ParticleField() {
         idleRotation += dt * 0.06;
         targetRot.x += (mouse.y * 0.18 - targetRot.x) * 0.04;
         targetRot.y += (mouse.x * 0.28 - targetRot.y) * 0.04;
-        points.rotation.y = idleRotation + targetRot.y;
-        points.rotation.x = targetRot.x;
+        points.rotation.y = idleRotation + targetRot.y + hop3D.spinY;
+        points.rotation.x = targetRot.x + hop3D.tumbleX;
+        points.position.z = hop3D.z;
       }
 
       renderer.render(scene, camera);
@@ -213,16 +229,24 @@ export default function ParticleField() {
       let squashY = 1;
       let driftX = 0;
       let runBob = 0;
+      let hopZ = 0;
+      let tumbleX = 0;
+      let spinY = 0;
 
       if (progress < P_LOGO_END) {
         shapeMorph = smoothstep(0, P_LOGO_END, progress);
       } else if (progress < P_JUMP1_END) {
         shapeMorph = 1;
         const t = (progress - P_LOGO_END) / (P_JUMP1_END - P_LOGO_END);
-        hopY = HOP1_AMPLITUDE * 4 * t * (1 - t);
+        const arc = 4 * t * (1 - t);
+        hopY = HOP1_AMPLITUDE * arc;
         squashY = 1 + 0.15 * Math.sin(t * Math.PI);
         squashX = 1 - 0.08 * Math.sin(t * Math.PI);
         driftX = HOP_FORWARD_1 * t;
+        // Leap toward camera and pitch forward through the air, so the hop
+        // reads as travel through 3D space, not a flat vertical bounce.
+        hopZ = HOP1_Z_AMPLITUDE * Math.sin(t * Math.PI);
+        tumbleX = HOP1_TUMBLE * Math.sin(t * Math.PI);
       } else if (progress < P_JUMP2_END) {
         const t = (progress - P_JUMP1_END) / (P_JUMP2_END - P_JUMP1_END);
         shapeMorph = 1 + smoothstep(0.35, 1.0, t);
@@ -230,6 +254,12 @@ export default function ParticleField() {
         squashY = 1 + 0.15 * Math.sin(t * Math.PI);
         squashX = 1 - 0.08 * Math.sin(t * Math.PI);
         driftX = HOP_FORWARD_1 + HOP_FORWARD_2 * t;
+        hopZ = HOP2_Z_AMPLITUDE * Math.sin(t * Math.PI);
+        tumbleX = HOP2_TUMBLE * Math.sin(t * Math.PI);
+        // One full turn across the jump — the kangaroo->human morph (which
+        // happens in the back half of this same window) lands mid-spin, so
+        // the transformation itself plays out as real 3D rotation.
+        spinY = t * Math.PI * 2 * HOP2_SPIN_TURNS;
       } else if (progress < P_RUN_END) {
         shapeMorph = 2;
         const t = (progress - P_JUMP2_END) / (P_RUN_END - P_JUMP2_END);
@@ -246,6 +276,9 @@ export default function ParticleField() {
       uniforms.uHopSquashY.value = squashY;
       uniforms.uDriftX.value = driftX;
       uniforms.uRunBob.value = runBob;
+      hop3D.z = hopZ;
+      hop3D.tumbleX = tumbleX;
+      hop3D.spinY = spinY;
     };
 
     if (reducedMotion) {
