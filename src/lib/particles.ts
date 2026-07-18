@@ -1,14 +1,16 @@
-// Client-only: samples particle positions from the ICHOR logo mark (drawn)
-// and the kangaroo brand frame (pixel luminance), normalized into matching
-// world-space point clouds so they can be morphed 1:1 by a shader.
+// Client-only: samples particle positions from real brand imagery (the logo
+// mark, the kangaroo brand frame) plus a procedural running-human pictogram,
+// normalized into matching world-space point clouds so they can be morphed
+// 1:1 by a shader.
 
 export type Point = { x: number; y: number; z: number };
 
-const TARGET_SIZE = 1.7; // world units, longest dimension of each normalized cloud
+const TARGET_SIZE = 1.7; // world units, longest dimension of a normalized cloud
 
 function normalizeAndResample(
   raw: { x: number; y: number; brightness: number }[],
-  count: number
+  count: number,
+  targetSize: number = TARGET_SIZE
 ): Point[] {
   if (raw.length === 0) {
     return Array.from({ length: count }, () => ({ x: 0, y: 0, z: 0 }));
@@ -28,7 +30,7 @@ function normalizeAndResample(
   const h = maxY - minY || 1;
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
-  const scale = TARGET_SIZE / Math.max(w, h);
+  const scale = targetSize / Math.max(w, h);
 
   // Shuffle so index i doesn't correlate with scan order (nicer chaos mid-morph).
   const shuffled = raw.slice();
@@ -53,48 +55,37 @@ function normalizeAndResample(
   return out;
 }
 
-/** Draws the ICHOR "C" mark and samples its filled ring into a point cloud. */
-export function sampleLogoCloud(count: number): Point[] {
-  const size = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, size, size);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = size * 0.26;
-  ctx.lineCap = "round";
-
-  const r = size * 0.34;
-  const cx = size / 2;
-  const cy = size / 2;
-  const startAngle = (35 * Math.PI) / 180;
-  const endAngle = (325 * Math.PI) / 180;
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, startAngle, endAngle, false);
-  ctx.stroke();
-
-  const { data } = ctx.getImageData(0, 0, size, size);
+function sampleCanvasBright(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  threshold: number,
+  stride: number
+): { x: number; y: number; brightness: number }[] {
+  const { data } = ctx.getImageData(0, 0, width, height);
   const candidates: { x: number; y: number; brightness: number }[] = [];
-  const stride = 2;
-  for (let y = 0; y < size; y += stride) {
-    for (let x = 0; x < size; x += stride) {
-      const i = (y * size + x) * 4;
-      if (data[i] > 128) {
-        candidates.push({ x, y, brightness: 220 });
+  for (let y = 0; y < height; y += stride) {
+    for (let x = 0; x < width; x += stride) {
+      const i = (y * width + x) * 4;
+      const lum = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      if (lum > threshold) {
+        candidates.push({ x, y, brightness: Math.min(255, lum) });
       }
     }
   }
-
-  return normalizeAndResample(candidates, count);
+  return candidates;
 }
 
-/** Loads the kangaroo frame and samples bright (foreground) pixels into a point cloud. */
-export async function sampleKangarooCloud(count: number): Promise<Point[]> {
+/** Loads a brand image and samples its bright (foreground) pixels into a point cloud. */
+async function sampleImageCloud(
+  src: string,
+  count: number,
+  threshold: number,
+  stride: number,
+  targetSize: number = TARGET_SIZE
+): Promise<Point[]> {
   const img = new Image();
-  img.src = "/images/kangaroo-source.jpg";
+  img.src = src;
   await img.decode();
 
   const canvas = document.createElement("canvas");
@@ -103,25 +94,87 @@ export async function sampleKangarooCloud(count: number): Promise<Point[]> {
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(img, 0, 0);
 
-  const { data, width, height } = ctx.getImageData(
-    0,
-    0,
+  const candidates = sampleCanvasBright(
+    ctx,
     canvas.width,
-    canvas.height
+    canvas.height,
+    threshold,
+    stride
   );
-  const candidates: { x: number; y: number; brightness: number }[] = [];
-  const stride = 3;
-  for (let y = 0; y < height; y += stride) {
-    for (let x = 0; x < width; x += stride) {
-      const i = (y * width + x) * 4;
-      const lum = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-      if (lum > 58) {
-        candidates.push({ x, y, brightness: Math.min(255, lum) });
-      }
-    }
-  }
+  return normalizeAndResample(candidates, count, targetSize);
+}
 
-  return normalizeAndResample(candidates, count);
+/** The real ICHOR mark, sampled from brand art (not hand-drawn). */
+export function sampleLogoCloud(count: number): Promise<Point[]> {
+  return sampleImageCloud("/images/logo-mark-source.jpg", count, 95, 2, TARGET_SIZE);
+}
+
+/** The kangaroo brand frame, sized up and thresholded low for a bold, solid silhouette. */
+export function sampleKangarooCloud(count: number): Promise<Point[]> {
+  return sampleImageCloud(
+    "/images/kangaroo-source.jpg",
+    count,
+    50,
+    3,
+    TARGET_SIZE * 1.32
+  );
+}
+
+/**
+ * A procedural mid-stride running pictogram (head, leaning torso, driving
+ * front knee, trailing back leg, swinging arms). The video's runner frame
+ * has a busy on-location background that can't be cleanly isolated by
+ * luminance, so this is drawn rather than sampled from a photo — same
+ * bold-stroke approach as the shoe cursor glyph.
+ */
+export function sampleHumanCloud(count: number): Point[] {
+  const size = 420;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = "#ffffff";
+  ctx.fillStyle = "#ffffff";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  const seg = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    width: number
+  ) => {
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  };
+
+  // Torso (leaning forward into the stride)
+  seg(228, 92, 178, 195, 40);
+  // Back leg: extended behind, pushing off
+  seg(178, 195, 100, 235, 34);
+  seg(100, 235, 62, 322, 28);
+  // Front leg: knee driving up and forward
+  seg(178, 195, 258, 208, 34);
+  seg(258, 208, 234, 305, 30);
+  // Back arm: swung back and up
+  seg(214, 108, 258, 122, 22);
+  seg(258, 122, 284, 92, 18);
+  // Front arm: swung forward and down, bent at elbow
+  seg(202, 108, 152, 132, 22);
+  seg(152, 132, 112, 178, 18);
+  // Head
+  ctx.beginPath();
+  ctx.arc(232, 60, 32, 0, Math.PI * 2);
+  ctx.fill();
+
+  const candidates = sampleCanvasBright(ctx, size, size, 128, 2);
+  return normalizeAndResample(candidates, count, TARGET_SIZE * 1.3);
 }
 
 export function pointsToFloat32(points: Point[]): Float32Array {

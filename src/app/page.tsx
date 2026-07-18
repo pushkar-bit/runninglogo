@@ -17,9 +17,10 @@ export default async function Home({
       <Nav />
       <ScrollCue />
       <main id="top" className="relative z-10">
-        {/* Pure scroll distance for the 3D logo -> kangaroo morph, rendered
-            by the fixed ParticleField canvas behind this transparent track. */}
-        <div id="scroll-track" className="h-[380vh] w-full" />
+        {/* Pure scroll distance for the logo -> kangaroo -> jump -> jump ->
+            human -> run sequence, rendered by the fixed ParticleField canvas
+            behind this transparent track. Three page-heights, per spec. */}
+        <div id="scroll-track" className="h-[300vh] w-full" />
         <SignUp user={user} notice={params.auth} />
       </main>
     </>
