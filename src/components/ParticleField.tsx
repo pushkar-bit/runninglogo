@@ -43,6 +43,14 @@ const HOP2_Z_AMPLITUDE = 0.75;
 const HOP2_TUMBLE = 0.45;
 const HOP2_SPIN_TURNS = 1;
 
+// The run itself keeps that 3D-ness going rather than flattening back onto
+// a fixed plane once the jump ends: a steady forward lean (toward camera,
+// pitched down) plus a subtle per-footfall oscillation on top of it.
+const RUN_LEAN_Z = 0.15;
+const RUN_LEAN_X = 0.1;
+const RUN_Z_AMPLITUDE = 0.06;
+const RUN_TUMBLE_AMPLITUDE = 0.035;
+
 function smoothstep(a: number, b: number, x: number) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -57,6 +65,7 @@ const VERTEX_SHADER = /* glsl */ `
   uniform float uHopSquashY;
   uniform float uDriftX;
   uniform float uRunBob;
+  uniform float uRunCycle;
   uniform float uTime;
   uniform float uPixelRatio;
   attribute vec3 aScatter;
@@ -64,6 +73,7 @@ const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aKangaroo;
   attribute vec3 aKangarooLeap;
   attribute vec3 aHuman;
+  attribute vec3 aHumanB;
   attribute vec3 aColor;
   attribute float aRand;
   varying vec3 vColor;
@@ -77,7 +87,11 @@ const VERTEX_SHADER = /* glsl */ `
     vec3 kangarooPose = mix(aKangaroo, aKangarooLeap, uPoseBlend);
     vec3 shapeA = mix(aLogo, kangarooPose, clamp(uShapeMorph, 0.0, 1.0));
     float humanBlend = clamp(uShapeMorph - 1.0, 0.0, 1.0);
-    vec3 shaped = mix(shapeA, aHuman, humanBlend);
+    // Alternate stride: the running human crossfades between two mirrored
+    // leg/arm poses (uRunCycle oscillates 0..1..0) so legs actually cycle
+    // through the stride instead of one frozen pose just bobbing in place.
+    vec3 humanPose = mix(aHuman, aHumanB, uRunCycle);
+    vec3 shaped = mix(shapeA, humanPose, humanBlend);
     vec3 pos = mix(aScatter, shaped, uGenesis);
 
     // Volumetric bulge through the transformation: particles push outward
@@ -164,6 +178,7 @@ export default function ParticleField() {
       uHopSquashY: { value: 1 },
       uDriftX: { value: 0 },
       uRunBob: { value: 0 },
+      uRunCycle: { value: 0 },
       uFade: { value: 1 },
       uTime: { value: 0 },
       uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
@@ -192,6 +207,7 @@ export default function ParticleField() {
     geometry.setAttribute("aKangaroo", new THREE.BufferAttribute(scatterBuf.slice(), 3));
     geometry.setAttribute("aKangarooLeap", new THREE.BufferAttribute(scatterBuf.slice(), 3));
     geometry.setAttribute("aHuman", new THREE.BufferAttribute(scatterBuf.slice(), 3));
+    geometry.setAttribute("aHumanB", new THREE.BufferAttribute(scatterBuf.slice(), 3));
     geometry.setAttribute("aColor", new THREE.BufferAttribute(color, 3));
     geometry.setAttribute("aRand", new THREE.BufferAttribute(rand, 1));
 
@@ -248,6 +264,7 @@ export default function ParticleField() {
       let squashY = 1;
       let driftX = 0;
       let runBob = 0;
+      let runCycle = 0;
       let hopZ = 0;
       let tumbleX = 0;
       let spinY = 0;
@@ -286,11 +303,23 @@ export default function ParticleField() {
       } else if (progress < P_RUN_END) {
         shapeMorph = 2;
         const t = (progress - P_JUMP2_END) / (P_RUN_END - P_JUMP2_END);
-        runBob = Math.abs(Math.sin(t * RUN_BOB_CYCLES * Math.PI)) * RUN_BOB_AMPLITUDE;
+        const phase = t * RUN_BOB_CYCLES * Math.PI;
+        runBob = Math.abs(Math.sin(phase)) * RUN_BOB_AMPLITUDE;
+        // Legs swap once per full gait cycle (two footfalls/bounces), so
+        // this runs at half runBob's frequency — real running biomechanics.
+        runCycle = 0.5 + 0.5 * Math.sin(phase);
         driftX = HOP_FORWARD_1 + HOP_FORWARD_2 + RUN_DRIFT * t;
+        // Constant forward lean plus a small per-footfall pitch/depth
+        // oscillation, so the run keeps the jump's 3D travel going instead
+        // of flattening onto a fixed plane once the legs start cycling.
+        hopZ = RUN_LEAN_Z + RUN_Z_AMPLITUDE * Math.sin(phase);
+        tumbleX = RUN_LEAN_X + RUN_TUMBLE_AMPLITUDE * Math.sin(phase * 2);
       } else {
         shapeMorph = 2;
         driftX = HOP_FORWARD_1 + HOP_FORWARD_2 + RUN_DRIFT;
+        runCycle = 0.5;
+        hopZ = RUN_LEAN_Z;
+        tumbleX = RUN_LEAN_X;
       }
 
       uniforms.uShapeMorph.value = shapeMorph;
@@ -300,6 +329,7 @@ export default function ParticleField() {
       uniforms.uHopSquashY.value = squashY;
       uniforms.uDriftX.value = driftX;
       uniforms.uRunBob.value = runBob;
+      uniforms.uRunCycle.value = runCycle;
       hop3D.z = hopZ;
       hop3D.tumbleX = tumbleX;
       hop3D.spinY = spinY;
@@ -320,6 +350,7 @@ export default function ParticleField() {
     ]).then(([logo, kangaroo, kangarooLeap]) => {
       if (disposed) return;
       const human = sampleHumanCloud(PARTICLE_COUNT);
+      const humanB = sampleHumanCloud(PARTICLE_COUNT, true);
 
       const logoBuf = pointsToFloat32(logo);
       geometry.setAttribute("position", new THREE.BufferAttribute(logoBuf.slice(), 3));
@@ -335,6 +366,10 @@ export default function ParticleField() {
       geometry.setAttribute(
         "aHuman",
         new THREE.BufferAttribute(pointsToFloat32(human), 3)
+      );
+      geometry.setAttribute(
+        "aHumanB",
+        new THREE.BufferAttribute(pointsToFloat32(humanB), 3)
       );
 
       if (reducedMotion) {

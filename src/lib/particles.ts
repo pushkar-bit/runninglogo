@@ -138,13 +138,22 @@ export function sampleKangarooLeapCloud(count: number): Promise<Point[]> {
 }
 
 /**
- * A procedural mid-stride running pictogram (head, leaning torso, driving
- * front knee, trailing back leg, swinging arms). The video's runner frame
- * has a busy on-location background that can't be cleanly isolated by
- * luminance, so this is drawn rather than sampled from a photo — same
- * bold-stroke approach as the shoe cursor glyph.
+ * A procedural running pictogram (head, leaning torso, legs, swinging arms).
+ * The video's runner frame has a busy on-location background that can't be
+ * cleanly isolated by luminance, so this is drawn rather than sampled from
+ * a photo — same bold-stroke approach as the shoe cursor glyph.
+ *
+ * `mirrored` produces the opposite half of the running stride — every limb
+ * reflected around the hip's x so whichever leg/arm was driving forward is
+ * now trailing back and vice versa, while the torso/head lean (the body's
+ * constant forward-facing orientation) stays put. Crossfading between the
+ * two during the run phase is what makes the legs actually cycle instead
+ * of one frozen pose just bobbing up and down.
  */
-export function sampleHumanCloud(count: number): Point[] {
+export function sampleHumanCloud(
+  count: number,
+  mirrored = false
+): Point[] {
   const size = 420;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -157,6 +166,9 @@ export function sampleHumanCloud(count: number): Point[] {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  const HIP_X = 178;
+  const mx = (x: number) => (mirrored ? HIP_X * 2 - x : x);
+
   const seg = (
     x1: number,
     y1: number,
@@ -166,13 +178,18 @@ export function sampleHumanCloud(count: number): Point[] {
   ) => {
     ctx.lineWidth = width;
     ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    ctx.moveTo(mx(x1), y1);
+    ctx.lineTo(mx(x2), y2);
     ctx.stroke();
   };
 
-  // Torso (leaning forward into the stride)
-  seg(228, 92, 178, 195, 40);
+  // Torso (leaning forward into the stride) — not mirrored, the body keeps
+  // facing/leaning the same direction throughout; only limbs alternate.
+  ctx.lineWidth = 40;
+  ctx.beginPath();
+  ctx.moveTo(228, 92);
+  ctx.lineTo(178, 195);
+  ctx.stroke();
   // Back leg: extended behind, pushing off
   seg(178, 195, 100, 235, 34);
   seg(100, 235, 62, 322, 28);
