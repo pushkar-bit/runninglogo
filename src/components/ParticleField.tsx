@@ -7,6 +7,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   sampleLogoCloud,
   sampleKangarooCloud,
+  sampleKangarooLeapCloud,
   sampleHumanCloud,
   sampleScatterCloud,
   pointsToFloat32,
@@ -50,6 +51,7 @@ function smoothstep(a: number, b: number, x: number) {
 const VERTEX_SHADER = /* glsl */ `
   uniform float uGenesis;
   uniform float uShapeMorph;
+  uniform float uPoseBlend;
   uniform float uHopY;
   uniform float uHopSquashX;
   uniform float uHopSquashY;
@@ -60,6 +62,7 @@ const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aScatter;
   attribute vec3 aLogo;
   attribute vec3 aKangaroo;
+  attribute vec3 aKangarooLeap;
   attribute vec3 aHuman;
   attribute vec3 aColor;
   attribute float aRand;
@@ -67,9 +70,22 @@ const VERTEX_SHADER = /* glsl */ `
   varying float vAlpha;
 
   void main() {
-    vec3 shapeA = mix(aLogo, aKangaroo, clamp(uShapeMorph, 0.0, 1.0));
-    vec3 shaped = mix(shapeA, aHuman, clamp(uShapeMorph - 1.0, 0.0, 1.0));
+    // The kangaroo's pose itself changes through the hop — grounded/standing
+    // silhouette at takeoff and landing, tucked-leg leap silhouette (sampled
+    // from an actual mid-air render) at the apex — not just a flat shape
+    // translating up and down.
+    vec3 kangarooPose = mix(aKangaroo, aKangarooLeap, uPoseBlend);
+    vec3 shapeA = mix(aLogo, kangarooPose, clamp(uShapeMorph, 0.0, 1.0));
+    float humanBlend = clamp(uShapeMorph - 1.0, 0.0, 1.0);
+    vec3 shaped = mix(shapeA, aHuman, humanBlend);
     vec3 pos = mix(aScatter, shaped, uGenesis);
+
+    // Volumetric bulge through the transformation: particles push outward
+    // in depth as the kangaroo dissolves into the human and pull back in
+    // as it resolves, so the morph reads as particles passing through 3D
+    // space rather than sliding along a flat line between two shapes.
+    float bulge = sin(humanBlend * 3.14159265) * (0.1 + aRand * 0.4);
+    pos.z += bulge;
 
     pos.x += sin(uTime * 0.6 + aRand * 6.2831) * 0.012;
     pos.y += cos(uTime * 0.5 + aRand * 6.2831) * 0.012;
@@ -142,6 +158,7 @@ export default function ParticleField() {
     const uniforms = {
       uGenesis: { value: 0 },
       uShapeMorph: { value: 0 },
+      uPoseBlend: { value: 0 },
       uHopY: { value: 0 },
       uHopSquashX: { value: 1 },
       uHopSquashY: { value: 1 },
@@ -173,6 +190,7 @@ export default function ParticleField() {
     geometry.setAttribute("aScatter", new THREE.BufferAttribute(scatterBuf, 3));
     geometry.setAttribute("aLogo", new THREE.BufferAttribute(scatterBuf.slice(), 3));
     geometry.setAttribute("aKangaroo", new THREE.BufferAttribute(scatterBuf.slice(), 3));
+    geometry.setAttribute("aKangarooLeap", new THREE.BufferAttribute(scatterBuf.slice(), 3));
     geometry.setAttribute("aHuman", new THREE.BufferAttribute(scatterBuf.slice(), 3));
     geometry.setAttribute("aColor", new THREE.BufferAttribute(color, 3));
     geometry.setAttribute("aRand", new THREE.BufferAttribute(rand, 1));
@@ -224,6 +242,7 @@ export default function ParticleField() {
 
     const applyProgress = (progress: number) => {
       let shapeMorph = 0;
+      let poseBlend = 0;
       let hopY = 0;
       let squashX = 1;
       let squashY = 1;
@@ -247,6 +266,9 @@ export default function ParticleField() {
         // reads as travel through 3D space, not a flat vertical bounce.
         hopZ = HOP1_Z_AMPLITUDE * Math.sin(t * Math.PI);
         tumbleX = HOP1_TUMBLE * Math.sin(t * Math.PI);
+        // Grounded pose at takeoff/landing, real tucked-leg leap pose at
+        // the apex — the animal's body actually changes shape mid-air.
+        poseBlend = Math.sin(t * Math.PI);
       } else if (progress < P_JUMP2_END) {
         const t = (progress - P_JUMP1_END) / (P_JUMP2_END - P_JUMP1_END);
         shapeMorph = 1 + smoothstep(0.35, 1.0, t);
@@ -256,6 +278,7 @@ export default function ParticleField() {
         driftX = HOP_FORWARD_1 + HOP_FORWARD_2 * t;
         hopZ = HOP2_Z_AMPLITUDE * Math.sin(t * Math.PI);
         tumbleX = HOP2_TUMBLE * Math.sin(t * Math.PI);
+        poseBlend = Math.sin(t * Math.PI);
         // One full turn across the jump — the kangaroo->human morph (which
         // happens in the back half of this same window) lands mid-spin, so
         // the transformation itself plays out as real 3D rotation.
@@ -271,6 +294,7 @@ export default function ParticleField() {
       }
 
       uniforms.uShapeMorph.value = shapeMorph;
+      uniforms.uPoseBlend.value = poseBlend;
       uniforms.uHopY.value = hopY;
       uniforms.uHopSquashX.value = squashX;
       uniforms.uHopSquashY.value = squashY;
@@ -292,7 +316,8 @@ export default function ParticleField() {
     Promise.all([
       sampleLogoCloud(PARTICLE_COUNT),
       sampleKangarooCloud(PARTICLE_COUNT),
-    ]).then(([logo, kangaroo]) => {
+      sampleKangarooLeapCloud(PARTICLE_COUNT),
+    ]).then(([logo, kangaroo, kangarooLeap]) => {
       if (disposed) return;
       const human = sampleHumanCloud(PARTICLE_COUNT);
 
@@ -302,6 +327,10 @@ export default function ParticleField() {
       geometry.setAttribute(
         "aKangaroo",
         new THREE.BufferAttribute(pointsToFloat32(kangaroo), 3)
+      );
+      geometry.setAttribute(
+        "aKangarooLeap",
+        new THREE.BufferAttribute(pointsToFloat32(kangarooLeap), 3)
       );
       geometry.setAttribute(
         "aHuman",

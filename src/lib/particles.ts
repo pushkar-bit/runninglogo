@@ -121,6 +121,23 @@ export function sampleKangarooCloud(count: number): Promise<Point[]> {
 }
 
 /**
+ * The kangaroo mid-leap — legs tucked, tail extended for balance, body
+ * pitched forward — sampled from an actual rendered jump rather than the
+ * standing pose. Blended in during the airborne part of each hop so the
+ * animal's pose actually changes through the jump instead of the standing
+ * silhouette just translating up and down.
+ */
+export function sampleKangarooLeapCloud(count: number): Promise<Point[]> {
+  return sampleImageCloud(
+    "/images/kangaroo-leap-source.jpg",
+    count,
+    68,
+    3,
+    TARGET_SIZE * 1.32
+  );
+}
+
+/**
  * A procedural mid-stride running pictogram (head, leaning torso, driving
  * front knee, trailing back leg, swinging arms). The video's runner frame
  * has a busy on-location background that can't be cleanly isolated by
